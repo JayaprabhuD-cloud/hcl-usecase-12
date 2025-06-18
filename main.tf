@@ -214,12 +214,11 @@ resource "aws_instance" "app_ec2" {
 # Creating db subnet groups Aurora cluster, aurora instance
 resource "aws_db_subnet_group" "subnet_group" {
   name       = "aurora-subnet-group"
-  
+
   subnet_ids = [
     aws_subnet.bayer_private_subnet_1.id,
     aws_subnet.bayer_private_subnet_2.id
   ]
-
 }
 
 resource "aws_rds_cluster" "db_cluster" {

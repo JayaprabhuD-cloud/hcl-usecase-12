@@ -6,8 +6,8 @@ terraform {
     }
   }
   backend "s3" {
-    bucket = "terraform-remote-state-bucket-s3-hcl"
-    key    = "uc-11/terraform.tfstate"
+    bucket = ""
+    key    = "uc-12/terraform.tfstate"
     region = "ap-south-1"
     use_lockfile = true   
   }
