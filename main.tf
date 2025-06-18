@@ -201,16 +201,42 @@ resource "aws_iam_instance_profile" "app_instance_profile" {
 resource "aws_instance" "app_ec2" {
   ami                         = "ami-0c7217cdde317cfec"
   instance_type               = "t2.micro"
-  subnet_id                   = var.ec2_subnet_id
-  vpc_security_group_ids      = [var.security_group_id]
-  key_name                    = var.key_name
-  iam_instance_profile        = aws_iam_instance_profile.ec2_profile.name
+  subnet_id                   = aws_subnet.bayer_public_subnet_1.id
+  vpc_security_group_ids      = [aws_security_group.bayer_app_sg.id]
+  iam_instance_profile        = aws_iam_instance_profile.app_instance_profile.name
   associate_public_ip_address = true
 
-  user_data = file("user_data.sh")
-
   tags = {
-    Name = "AppEC2"
+    Name = "bayer-application"
   }
 }
 
+# Creating db subnet groups Aurora cluster, aurora instance
+resource "aws_db_subnet_group" "subnet_group" {
+  name       = "aurora-subnet-group"
+  subnet_ids = var.private_subnets
+}
+
+resource "aws_rds_cluster" "db_cluster" {
+  cluster_identifier           = "bayer-mysql-cluster"
+  engine                       = "aurora-mysql"
+  engine_version               = "8.0.mysql_aurora.3.04.0"
+  database_name                = "bayer_aurora_db"
+  db_subnet_group_name         = aws_db_subnet_group.subnet_group.name
+  vpc_security_group_ids       = [aws_security_group.bayer_db_sg.id]
+  manage_master_user_password  = true
+  master_username              = "admin"
+  skip_final_snapshot          = true
+}
+
+resource "aws_rds_cluster_instance" "aurora_db_instance" {
+  identifier              = "bayer-aurora-instance"
+  cluster_identifier      = aws_rds_cluster.db_cluster.id
+  instance_class          = "db.t3.medium"
+  engine                  = aws_rds_cluster.db_cluster.engine
+  db_subnet_group_name    = aws_db_subnet_group.subnet_group.name
+}
+
+output "db_endpoint" {
+  value = aws_rds_cluster.db_cluster.endpoint
+}
