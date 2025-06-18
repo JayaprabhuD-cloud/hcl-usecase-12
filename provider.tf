@@ -6,10 +6,9 @@ terraform {
     }
   }
   backend "s3" {
-    bucket = ""
+    bucket = "bayer-new-terraform-remote-state-bucket"
     key    = "uc-12/terraform.tfstate"
-    region = "ap-south-1"
-    use_lockfile = true   
+    region = "ap-south-1"   
   }
 }
 
