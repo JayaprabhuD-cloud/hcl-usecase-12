@@ -199,7 +199,7 @@ resource "aws_iam_instance_profile" "app_instance_profile" {
 
 # Creating Application Instance
 resource "aws_instance" "app_ec2" {
-  ami                         = "ami-0c7217cdde317cfec"
+  ami                         = "ami-0b09627181c8d5778"
   instance_type               = "t2.micro"
   subnet_id                   = aws_subnet.bayer_public_subnet_1.id
   vpc_security_group_ids      = [aws_security_group.bayer_app_sg.id]

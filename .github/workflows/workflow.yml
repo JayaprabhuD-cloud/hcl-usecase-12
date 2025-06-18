@@ -1,0 +1,128 @@
+name: Terraform Apply and Destroy
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Terraform action to perform'
+        required: true
+        default: 'destroy'
+        type: choice
+        options:
+          - destroy
+
+permissions:
+  id-token: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  terraform:
+    name: Terraform Apply or Destroy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::058264249757:role/OIDC_role
+          aws-region: ap-south-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Install TFLint
+        run: |
+          curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash
+
+      - name: Run TFLint
+        continue-on-error: true
+        run: |
+          tflint --init
+          tflint --recursive
+
+      # Install Checkov.
+      - name: Install Checkov
+        run: |
+          python -m pip install --upgrade pip
+          pip install checkov
+
+      # Run Checkov to scan Terraform files.
+      - name: Run Checkov Scan
+        continue-on-error: true
+        run: |
+          checkov -d ./ --skip-path .github/* --soft-fail    # Scan the current directory for Terraform files.
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -recursive
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate
+
+      - name: Terraform test
+        id: test
+        run: terraform test
+        continue-on-error: true 
+
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.0
+        continue-on-error: true
+
+      - name: Install Conftest
+        run: |
+          curl -L https://github.com/open-policy-agent/conftest/releases/download/v0.45.0/conftest_0.45.0_Linux_x86_64.tar.gz | tar xz
+          sudo mv conftest /usr/local/bin
+
+      - name: Terraform Init & Plan
+        run: |
+          terraform init
+          terraform plan -out=tfplan.binary
+          terraform show -json tfplan.binary > tfplan.json
+
+      - name: Run OPA Policy Check
+        run: conftest test tfplan.json --policy policy/
+        continue-on-error: true
+
+      - name: Terraform Apply
+        if: contains(github.event.head_commit.message, 'terraform apply')
+        run: terraform apply -auto-approve
+
+      - name: Terraform Destroy
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+        run: terraform destroy -auto-approve
+
+  docs:
+    name: Render Terraform Docs
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Render terraform docs and push changes back to PR
+        uses: terraform-docs/gh-actions@v1.1.0
+        with:
+          working-dir: .
+          output-file: README.md
+          output-method: inject
+          git-push: true
